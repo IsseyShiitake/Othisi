@@ -99,6 +99,29 @@ nav{
   background:rgba(255,253,230,.92);
   backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   border-bottom:1px solid var(--line);
+  transition:transform .5s cubic-bezier(.22,.9,.3,1);
+}
+/* desktop : la barre glisse vers le haut dès que le logo l'a quittée */
+@media(min-width:861px){
+  nav.nav-hidden{transform:translateY(-101%)}
+  /* capsule du logo : cercle au style identique à la pastille (même couleur,
+     même contour, même ombre), largeur = pastille, logo centré dedans */
+  .nav-logo-cap{
+    position:fixed;z-index:250;pointer-events:none;
+  }
+  .nav-logo-cap img{position:absolute;display:block;height:auto}
+  /* logo −20 % de plus dans la barre, et la barre garde sa hauteur d'origine */
+  nav .nav-logo img{width:calc(var(--logo-w) * .64)}
+  nav{min-height:81px}
+  .nav-logo-cap-circle{
+    position:absolute;inset:0;border-radius:50%;
+    border:1px solid rgba(58,25,0,.12);
+    background:rgba(255,250,238,.55);
+    backdrop-filter:blur(24px) saturate(1.15);
+    -webkit-backdrop-filter:blur(24px) saturate(1.15);
+    box-shadow:0 10px 30px rgba(58,25,0,.14),inset 0 1px 0 rgba(255,255,255,.65);
+    opacity:0;transition:opacity .18s ease;
+  }
 }
 .nav-logo{display:flex;align-items:center;text-decoration:none}
 .nav-logo img{display:block;width:var(--logo-w);height:auto;}
@@ -423,19 +446,27 @@ footer{
   .nav-logo img[style]{position:static!important;visibility:visible!important}
   /* demi-pastille : la moitié gauche sort de l'écran, les icônes perdent
      leur cercle externe et rétrécissent pour tenir dans la moitié visible */
-  .nav-pill{left:.7rem;width:66px;padding:.7rem 0;transform:translateX(-50%)}
-  .nav-links{gap:.6rem}
+  /* vraie demi-pastille : le centre de la pastille est sur le bord gauche de
+     l'écran (left:0 + translateX(-50%)) → exactement la moitié droite est visible ;
+     icônes recentrées dans cette moitié visible */
+  /* ombre douce réintroduite (modérée) : le cap arrondi à droite se lit
+     mieux avec une ombre légère ; décalage à gauche des icônes compensé
+     ci-dessous pour un rendu "centré" à l'œil */
+  .nav-pill{left:0;width:clamp(34px,11.4vw,42px);padding:.7rem 0;transform:translateX(-50%);
+    box-shadow:0 6px 16px rgba(58,25,0,.12),inset 0 1px 0 rgba(255,255,255,.65)}
+  /* recentrage visuel : ~1.5px à gauche du centre géométrique de la moitié visible */
+  .nav-links{gap:.6rem;transform:translateX(calc(25% - 1px))}
   .nav-icon{
-    width:32px;height:32px;
+    width:clamp(16px,5.4vw,20px);height:clamp(16px,5.4vw,20px);
     border:none;background:transparent;box-shadow:none;
     color:var(--brown);opacity:.5;
   }
   .nav-icon:hover{transform:translateX(2px);background:transparent;border:none;box-shadow:none;opacity:.85}
   .nav-icon.active{color:var(--orange-d);background:transparent;border:none;box-shadow:none;opacity:1}
   .nav-icon.active svg{transform:scale(1.15)}
-  .nav-icon svg{width:20px;height:20px}
-  /* pastille d'étiquette lisible malgré l'étroitesse */
-  .nav-label{left:calc(100% - .35rem);font-size:.6rem}
+  .nav-icon svg{width:clamp(11px,3.6vw,13px);height:clamp(11px,3.6vw,13px)}
+  /* plus d'étiquette flottante sur mobile : elle occupe trop d'écran */
+  .nav-label{display:none}
   .nav-social{gap:.6rem}
   .nav-social a svg{width:18px;height:18px}
   .contact-visual{max-width:80vw}
@@ -466,7 +497,7 @@ footer{
 <!-- ── NAV ─────────────────────────────────────────── -->
 <nav>
   <a href="#" class="nav-logo" onclick="window.scrollTo({top:0,behavior:'smooth'});return false">
-    <img src="fond_creme_seul.jpg" alt="Othisi"/>
+    <img src="fond_creme_seul.png" alt="Othisi" width="856" height="651"/>
   </a>
   <div class="nav-social">
     <a href="https://www.instagram.com/othisiconseil" target="_blank" rel="noopener" aria-label="Instagram">
@@ -860,7 +891,6 @@ footer{
   window.addEventListener('scroll',()=>{
     if(!pillTick){requestAnimationFrame(()=>{placePill();pillTick=false;});pillTick=true;}
   },{passive:true});
-  window.addEventListener('resize',placePill);
   placePill();
   // après chaque placement de la pastille, le logo (anim desktop) recalcule ses bornes
   const _placePillInner=placePill;
@@ -868,6 +898,13 @@ footer{
     _placePillInner();
     if(window.othisiLogoFrames)window.othisiLogoFrames();
   };
+  // la pastille ne doit JAMAIS démarrer cachée derrière la barre : on la
+  // repositionne une fois le layout réellement stabilisé (image + polices).
+  window.addEventListener('resize',placePill);
+  window.addEventListener('load',placePill);
+  if(document.fonts)document.fonts.ready.then(placePill);
+  const _navLogo=document.querySelector('.nav-logo img');
+  if(_navLogo&&!_navLogo.complete)_navLogo.addEventListener('load',placePill);
 
   // ── Ancres précises : le haut de la section se cale exactement sous la barre ──
   function scrollToSection(target,behavior){
@@ -907,16 +944,24 @@ footer{
   (()=>{
     /* réduction des animations : on laisse tout tranquille */
     if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
-    const S=1.15;   // logo légèrement agrandi à la fixation (+15 %)
-    const BLUR=.012; // flou "liquide épais" proportionnel à la largeur (≈1.3px max)
     const GRAY=.15;  // légère désaturation une fois fixé
+    const GAPL=12.8; // écart cercle→pastille = pas intérieur (1rem) réduit de 20 %
+    /* le "bas du soleil" (trait horizontal orange) est à 427/651 de la hauteur
+       du PNG : on aligne ce trait au centre du cercle quand le logo y est posé */
+    const LINE_F=427/651;
 
     const logo=document.querySelector('.nav-logo');
     const real=logo&&logo.querySelector('img');
+    const iconEl=document.querySelector('.nav-icon');
     const aboutEl=document.querySelector('#section-accueil .about');
-    if(!logo||!real||!aboutEl||!pill||!navEl)return;
+    if(!logo||!real||!aboutEl||!pill||!navEl||!iconEl)return;
+    const aspect=(+real.getAttribute('height')||651)/(+real.getAttribute('width')||856);
+    /* cercle = même largeur que la pastille ; logo dedans = 30 % plus petit
+       que les icônes, positionné pour que le trait du soleil soit au centre */
+    const CAPW=pill.offsetWidth;
+    const ARTW=iconEl.offsetWidth*.7;
 
-    let armed=false,clone,home,logoW,pxT,pxEnd;
+    let armed=false,cap,circle,clone,home,logoW,logoH,pxT,pxEnd;
     const mql=window.matchMedia('(min-width:861px)');
 
     const easePull=k=>1-Math.pow(1-k,3);      // attraction résistante (rapide→lent)
@@ -924,9 +969,13 @@ footer{
     const B=.74;                              // point de rupture (≈ section .about)
 
     function captureHome(){
+      /* on ne mesure que lorsque la barre est au repos : pendant sa glissade
+         (top négatif) la mesure fausserait home et ferait remonter le logo
+         hors de l'écran en remontant vers le haut */
+      if(navEl.getBoundingClientRect().top < -0.5)return;
       const r=real.getBoundingClientRect();
       home={l:r.left,t:r.top,w:r.width};
-      logoW=r.width;
+      logoW=r.width;logoH=r.width*aspect;
     }
     function computeEnd(){
       /* arrivée à .about = sa position absolue − hauteur barre ; on arrête un peu avant */
@@ -945,69 +994,88 @@ footer{
     function buildClone(){
       if(clone)return;
       captureHome();
+      /* capsule : cercle (style pastille) + logo ; posée en "fixed" au-dessus de
+         la barre (z 250) → ne suit pas la barre quand celle-ci glisse vers le haut */
+      cap=document.createElement('div');
+      cap.className='nav-logo-cap';
+      circle=document.createElement('div');
+      circle.className='nav-logo-cap-circle';
       clone=real.cloneNode(true);
       clone.removeAttribute('id');clone.setAttribute('aria-hidden','true');
-      logo.appendChild(clone);
-      Object.assign(clone.style,{
-        position:'fixed',margin:0,zIndex:151,pointerEvents:'none',
-        left:home.l+'px',top:home.t+'px',width:logoW+'px',height:'auto',
-        transformOrigin:'50% 50%'
-      });
+      cap.appendChild(circle);
+      cap.appendChild(clone);
+      document.body.appendChild(cap);
+      cap.style.width=CAPW+'px';cap.style.height=CAPW+'px';
+      clone.style.width=logoW+'px'; // taille initiale = logo de la barre
       real.style.visibility='hidden'; // conserve la place (lien cliquable)
       /* position initiale posée par frame() juste après */
     }
 
-    function setClone(x,y,w,sc,o,f){
-      clone.style.left=x+'px';clone.style.top=y+'px';clone.style.width=w+'px';
-      clone.style.transform=`scale(${sc})`;
+    function imgOffsetY(imgW,align){
+      /* décalage vertical du logo DANS le cercle : centré (align=0) →
+         trait du soleil au centre du cercle (align=1) */
+      const imgH=imgW*aspect;
+      return (1-align)*((CAPW-imgH)/2)+align*(CAPW/2-LINE_F*imgH);
+    }
+    function placeCap(cx,cy,imgW,align,o,f){
+      /* (cx,cy) = coin haut-gauche du CERCLE ; le logo est placé dedans */
+      cap.style.left=cx+'px';cap.style.top=cy+'px';
+      clone.style.left=((CAPW-imgW)/2)+'px';
+      clone.style.top=imgOffsetY(imgW,align)+'px';
+      clone.style.width=imgW+'px';
       clone.style.opacity=o;clone.style.filter=f;
     }
-    function dockCoords(){ /* position cible centrée sur les icônes, juste au-dessus de la pastille */
-      const w=logoW*S;
-      const yTop=Math.max(navEl.getBoundingClientRect().bottom+4,pill.getBoundingClientRect().top-w-8);
-      return {w,x:pill.offsetLeft+(pill.offsetWidth-w)/2,yTop};
+    function dockCoords(){ /* cercle aligné sur la pastille, posé à GAPL au-dessus */
+      return {cx:pill.offsetLeft,cy:pill.getBoundingClientRect().top-GAPL-CAPW};
     }
 
     function frame(){
       if(!clone)return;
+      const navH=navEl.offsetHeight;
+      const homeT=home?home.t:real.getBoundingClientRect().top;
+      const homeL=home?home.l:real.getBoundingClientRect().left;
+      const cxHome=homeL-(CAPW-logoW)/2;
+      const cyHome=homeT-(CAPW-logoH)/2;
+      const cxDock=pill.offsetLeft;
+      let cx,cy,imgW,align,o,f;
       if(!armed){
         if(window.scrollY>2){
           armed=true;pill.style.transition='none'; // la pastille ne doit pas glisser pendant l'anim
           captureHome();computeFrames();precomputeCycle();
         }else{
-          /* ancré en haut exactement comme le vrai logo */
-          setClone(home?home.l:real.getBoundingClientRect().left,
-                   home?home.t:real.getBoundingClientRect().top,
-                   logoW||real.getBoundingClientRect().width,1,1,'none');
+          navEl.classList.remove('nav-hidden');
+          const lw=logoW||real.getBoundingClientRect().width;
+          placeCap(homeL-(CAPW-lw)/2,homeT-(CAPW-lw*aspect)/2,lw,0,1,'none');
+          circle.style.opacity=0;
           return;
         }
       }
       const sy=window.scrollY;
-      if(sy>=pxEnd){ /* fixé : suit la pastille, légèrement "fluide" (blur) */
+      if(sy>=pxEnd){ /* fixé : cercle au-dessus de la pastille, trait du soleil centré */
         const d=dockCoords();
-        setClone(d.x,d.yTop,d.w,1,.98,`grayscale(${GRAY}) blur(${d.w*BLUR}px)`);
-        return;
+        cx=d.cx;cy=d.cy;imgW=ARTW;align=1;o=.98;f=`grayscale(${GRAY})`;
+      }else{
+        const p=pxEnd>0?Math.min(1,Math.max(0,sy/pxEnd)):0;
+        const cyBreak=pxT-GAPL-CAPW;
+        const cyDock=pill.getBoundingClientRect().top-GAPL-CAPW;
+        if(p>=B){ /* point de rupture : "slurp" vers la position fixée */
+          const q=easeSling((p-B)/(1-B));
+          cx=cxDock;cy=cyBreak+(cyDock-cyBreak)*q;imgW=ARTW;align=q;
+          o=1-(.02*q);f=`grayscale(${GRAY*q})`;
+        }else{ /* attraction résistante : le logo quitte la barre, rétrécit, centré */
+          const k=easePull(p/B);
+          imgW=logoW+(ARTW-logoW)*k;
+          cx=cxHome+(cxDock-cxHome)*k;
+          cy=cyHome+(cyBreak-cyHome)*k;
+          align=0;o=1;f='none';
+        }
       }
-      const p=pxEnd>0?Math.min(1,Math.max(0,sy/pxEnd)):0;
-      const stX=pill.offsetLeft+(pill.offsetWidth-logoW)/2;
-      if(p>=B){ /* point de rupture dépassé : "slurp" vers la pastille (départ brusque) */
-        const q=easeSling((p-B)/(1-B));
-        const d=dockCoords();
-        const w=logoW+(d.w-logoW)*q;
-        setClone(
-          stX+(d.x-stX)*q,
-          (pxT-logoW-8)+(d.yTop-(pxT-logoW-8))*q,
-          w,1,1-(.02*q),
-          `grayscale(${GRAY*q}) blur(${w*BLUR*q}px)`
-        );
-      }else{ /* attraction avec résistance vers le point virtuel de rupture */
-        const k=easePull(p/B);
-        setClone(
-          home.l+(stX-home.l)*k,
-          home.t+((pxT-logoW-8)-home.t)*k,
-          logoW*(1-(.18*k)),1,1,'none'
-        );
-      }
+      placeCap(cx,cy,imgW,align,o,f);
+      const imgTop=cy+imgOffsetY(imgW,align);
+      /* le cercle apparaît dès que le logo sort de la barre, disparaît au retour */
+      circle.style.opacity=Math.max(0,Math.min(1,(imgTop-homeT)/(navH-homeT)));
+      /* la barre s'efface dès que le logo l'a quittée, revient en haut */
+      navEl.classList.toggle('nav-hidden',imgTop>=navH);
     }
 
     function computeFrames(){computeEnd();precomputeCycle();}
@@ -1020,7 +1088,8 @@ footer{
       if(!mql.matches){ /* mobile : logo normal, pastille demi (gérée en CSS) */
         armed=false;
         pill.style.transition='';
-        if(clone){clone.remove();clone=null;}
+        navEl.classList.remove('nav-hidden');
+        if(cap){cap.remove();cap=null;circle=null;clone=null;}
         real.style.visibility='visible';
         return;
       }
@@ -1028,7 +1097,7 @@ footer{
       armed=false;
       captureHome();
       if(window.scrollY>2){armed=true;computeFrames();precomputeCycle();frame();}
-      else{setClone(home.l,home.t,logoW,1,1,'none');}
+      else{placeCap(home.l-(CAPW-logoW)/2,home.t-(CAPW-logoH)/2,logoW,0,1,'none');circle.style.opacity=0;}
     }
 
     mql.addEventListener('change',evaluate);
