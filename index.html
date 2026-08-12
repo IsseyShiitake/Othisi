@@ -106,7 +106,7 @@ nav{
 /* pastille — colonne fixe à bords arrondis (façon Othisi2),
    suit le défilement : son "top" est piloté par le script de scroll */
 .nav-pill{
-  position:fixed;left:1.6rem;top:130px;z-index:150;
+  position:fixed;left:1.6rem;top:110px;z-index:150;
   width:var(--logo-w);padding:1rem 0;border-radius:100px;
   border:1px solid rgba(58,25,0,.12);
   background:rgba(255,250,238,.55);
@@ -115,6 +115,9 @@ nav{
   box-shadow:
     0 10px 30px rgba(58,25,0,.14),
     inset 0 1px 0 rgba(255,255,255,.65);
+  /* fluide au redimensionnement (mobile : décalage 50 %) ; désactivée
+     temporairement par le script pendant "l'aspiration" du logo (desktop) */
+  transition:transform .2s ease;
 }
 .nav-links{
   display:flex;flex-direction:column;align-items:center;
@@ -406,6 +409,8 @@ footer{
   opacity:1;transform:none;
   transition:opacity .5s ease,transform .5s ease;
 }
+/* force un calque dédié : arrive stable des sections au scroll (mobile) */
+.page-sec{will-change:transform,opacity}
 
 /* ════════════════════════════════════════════════════
    RESPONSIVE
@@ -414,14 +419,27 @@ footer{
   .wrap{padding:0 1.4rem}
   nav{padding:.3rem .8rem}
   .nav-logo img{width:60px}
-  .nav-pill{left:.7rem;width:66px;padding:.8rem 0}
-  .nav-links{gap:.84rem}
-  .nav-icon{width:53px;height:53px}
-  .nav-icon svg{width:22px;height:22px}
+  /* sécurité : si le JS desktop a laissé des styles inline sur le logo, on les ignore */
+  .nav-logo img[style]{position:static!important;visibility:visible!important}
+  /* demi-pastille : la moitié gauche sort de l'écran, les icônes perdent
+     leur cercle externe et rétrécissent pour tenir dans la moitié visible */
+  .nav-pill{left:.7rem;width:66px;padding:.7rem 0;transform:translateX(-50%)}
+  .nav-links{gap:.6rem}
+  .nav-icon{
+    width:32px;height:32px;
+    border:none;background:transparent;box-shadow:none;
+    color:var(--brown);opacity:.5;
+  }
+  .nav-icon:hover{transform:translateX(2px);background:transparent;border:none;box-shadow:none;opacity:.85}
+  .nav-icon.active{color:var(--orange-d);background:transparent;border:none;box-shadow:none;opacity:1}
+  .nav-icon.active svg{transform:scale(1.15)}
+  .nav-icon svg{width:20px;height:20px}
+  /* pastille d'étiquette lisible malgré l'étroitesse */
+  .nav-label{left:calc(100% - .35rem);font-size:.6rem}
   .nav-social{gap:.6rem}
   .nav-social a svg{width:18px;height:18px}
-  .nav-label{left:calc(100% + .45rem);font-size:.6rem}
   .contact-visual{max-width:80vw}
+  .contact-visual{height:min(374px,80vw)}
   .contact-icon{width:52px;height:52px}
   .contact-icon svg{width:22px;height:22px}
   .contact-items{grid-template-columns:1fr;max-width:420px}
@@ -796,7 +814,7 @@ footer{
   if(firstSec){firstSec.classList.add('sc-in','sc-first');}
   triggerFU(firstSec);
 
-  const io=new IntersectionObserver(es=>{
+  function ioHandler(es){
     es.forEach(e=>{
       const s=e.target;
       if(e.isIntersecting){
@@ -810,7 +828,16 @@ footer{
         s.classList.remove('sc-in');
       }
     });
-  },{threshold:0.15});
+  }
+  const io=new IntersectionObserver(es=>{
+    if(io.anchorMode){ioHandler(es);return;}
+    // sinon : laisser placePill() (rAF planifié par le listener scroll) passer
+    // en premier — la pastille est alors positionnée avant que la section
+    // réapparaisse (corrige le contenu invisible à l'arrivée sur mobile).
+    requestAnimationFrame(()=>ioHandler(es));
+  },{threshold:0.1});
+  io.IOVERSION=1;
+  io.anchorMode=false;
 
   secs.forEach(s=>io.observe(s));
 
@@ -835,6 +862,12 @@ footer{
   },{passive:true});
   window.addEventListener('resize',placePill);
   placePill();
+  // après chaque placement de la pastille, le logo (anim desktop) recalcule ses bornes
+  const _placePillInner=placePill;
+  placePill=function(){
+    _placePillInner();
+    if(window.othisiLogoFrames)window.othisiLogoFrames();
+  };
 
   // ── Ancres précises : le haut de la section se cale exactement sous la barre ──
   function scrollToSection(target,behavior){
@@ -848,6 +881,8 @@ footer{
       if(!target)return;
       e.preventDefault();
       history.pushState(null,'',a.getAttribute('href'));
+      // lecture d'ancre : le correctif d'ordre des callbacks IO n'est pas requis
+      if(typeof io!=='undefined'&&io.IOVERSION)io.anchorMode=true;
       scrollToSection(target,'smooth');
     });
   });
@@ -861,6 +896,147 @@ footer{
       setTimeout(recenter,400);
     }
   }
+
+  /* ════════════════════════════════════════════════════
+     LOGO "SLURP" (desktop ≥861px uniquement)
+     Le logo semble attiré par la pastille : il descend avec
+     résistance (ease power3-out), puis au point de rupture
+     ~section .about il file rejoindre la pastille — chaude,
+     il se fige ; au retour vers le haut il revient tiédir.
+  ════════════════════════════════════════════════════ */
+  (()=>{
+    /* réduction des animations : on laisse tout tranquille */
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    const S=1.15;   // logo légèrement agrandi à la fixation (+15 %)
+    const BLUR=.012; // flou "liquide épais" proportionnel à la largeur (≈1.3px max)
+    const GRAY=.15;  // légère désaturation une fois fixé
+
+    const logo=document.querySelector('.nav-logo');
+    const real=logo&&logo.querySelector('img');
+    const aboutEl=document.querySelector('#section-accueil .about');
+    if(!logo||!real||!aboutEl||!pill||!navEl)return;
+
+    let armed=false,clone,home,logoW,pxT,pxEnd;
+    const mql=window.matchMedia('(min-width:861px)');
+
+    const easePull=k=>1-Math.pow(1-k,3);      // attraction résistante (rapide→lent)
+    const easeSling=k=>1-Math.pow(1-k,3);     // "slurp" : départ brusque, arrive douce
+    const B=.74;                              // point de rupture (≈ section .about)
+
+    function captureHome(){
+      const r=real.getBoundingClientRect();
+      home={l:r.left,t:r.top,w:r.width};
+      logoW=r.width;
+    }
+    function computeEnd(){
+      /* arrivée à .about = sa position absolue − hauteur barre ; on arrête un peu avant */
+      const abs=aboutEl.getBoundingClientRect().top+window.scrollY-navEl.offsetHeight;
+      pxEnd=Math.max(1,abs*.8);
+    }
+    /* "top" de la pastille au point de rupture (recalculé sur son propre moteur) */
+    function precomputeCycle(){
+      const topMin=navEl.offsetHeight+26;
+      const topMax=window.innerHeight-pill.offsetHeight-26;
+      const maxScroll=document.documentElement.scrollHeight-window.innerHeight;
+      const syB=B*pxEnd;
+      pxT=maxScroll>0?topMin+Math.min(1,Math.max(0,syB/maxScroll))*(topMax-topMin):topMin;
+    }
+
+    function buildClone(){
+      if(clone)return;
+      captureHome();
+      clone=real.cloneNode(true);
+      clone.removeAttribute('id');clone.setAttribute('aria-hidden','true');
+      logo.appendChild(clone);
+      Object.assign(clone.style,{
+        position:'fixed',margin:0,zIndex:151,pointerEvents:'none',
+        left:home.l+'px',top:home.t+'px',width:logoW+'px',height:'auto',
+        transformOrigin:'50% 50%'
+      });
+      real.style.visibility='hidden'; // conserve la place (lien cliquable)
+      /* position initiale posée par frame() juste après */
+    }
+
+    function setClone(x,y,w,sc,o,f){
+      clone.style.left=x+'px';clone.style.top=y+'px';clone.style.width=w+'px';
+      clone.style.transform=`scale(${sc})`;
+      clone.style.opacity=o;clone.style.filter=f;
+    }
+    function dockCoords(){ /* position cible centrée sur les icônes, juste au-dessus de la pastille */
+      const w=logoW*S;
+      const yTop=Math.max(navEl.getBoundingClientRect().bottom+4,pill.getBoundingClientRect().top-w-8);
+      return {w,x:pill.offsetLeft+(pill.offsetWidth-w)/2,yTop};
+    }
+
+    function frame(){
+      if(!clone)return;
+      if(!armed){
+        if(window.scrollY>2){
+          armed=true;pill.style.transition='none'; // la pastille ne doit pas glisser pendant l'anim
+          captureHome();computeFrames();precomputeCycle();
+        }else{
+          /* ancré en haut exactement comme le vrai logo */
+          setClone(home?home.l:real.getBoundingClientRect().left,
+                   home?home.t:real.getBoundingClientRect().top,
+                   logoW||real.getBoundingClientRect().width,1,1,'none');
+          return;
+        }
+      }
+      const sy=window.scrollY;
+      if(sy>=pxEnd){ /* fixé : suit la pastille, légèrement "fluide" (blur) */
+        const d=dockCoords();
+        setClone(d.x,d.yTop,d.w,1,.98,`grayscale(${GRAY}) blur(${d.w*BLUR}px)`);
+        return;
+      }
+      const p=pxEnd>0?Math.min(1,Math.max(0,sy/pxEnd)):0;
+      const stX=pill.offsetLeft+(pill.offsetWidth-logoW)/2;
+      if(p>=B){ /* point de rupture dépassé : "slurp" vers la pastille (départ brusque) */
+        const q=easeSling((p-B)/(1-B));
+        const d=dockCoords();
+        const w=logoW+(d.w-logoW)*q;
+        setClone(
+          stX+(d.x-stX)*q,
+          (pxT-logoW-8)+(d.yTop-(pxT-logoW-8))*q,
+          w,1,1-(.02*q),
+          `grayscale(${GRAY*q}) blur(${w*BLUR*q}px)`
+        );
+      }else{ /* attraction avec résistance vers le point virtuel de rupture */
+        const k=easePull(p/B);
+        setClone(
+          home.l+(stX-home.l)*k,
+          home.t+((pxT-logoW-8)-home.t)*k,
+          logoW*(1-(.18*k)),1,1,'none'
+        );
+      }
+    }
+
+    function computeFrames(){computeEnd();precomputeCycle();}
+    window.othisiLogoFrames=function(){
+      if(!clone||!armed)return;
+      captureHome();computeFrames();frame();
+    };
+
+    function evaluate(){
+      if(!mql.matches){ /* mobile : logo normal, pastille demi (gérée en CSS) */
+        armed=false;
+        pill.style.transition='';
+        if(clone){clone.remove();clone=null;}
+        real.style.visibility='visible';
+        return;
+      }
+      if(!clone)buildClone();
+      armed=false;
+      captureHome();
+      if(window.scrollY>2){armed=true;computeFrames();precomputeCycle();frame();}
+      else{setClone(home.l,home.t,logoW,1,1,'none');}
+    }
+
+    mql.addEventListener('change',evaluate);
+    window.addEventListener('scroll',frame,{passive:true});
+    window.addEventListener('resize',()=>{if(clone&&!armed){captureHome();}if(clone){computeFrames();precomputeCycle();frame();}});
+    window.addEventListener('load',()=>{if(clone){captureHome();computeFrames();precomputeCycle();frame();}});
+    evaluate();
+  })();
 </script>
 </body>
 </html>
