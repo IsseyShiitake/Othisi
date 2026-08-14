@@ -29,7 +29,7 @@
   --arch-s: clamp(64px,8vw,92px);
 
   --logo-w:92px;     /* largeur du logo (−15 %) */
-  --nicon:67px;      /* taille des icônes / cercles */
+  --nicon:calc(67px * .7); /* icônes du nav-pill — 67px réduit de 30 % */
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -95,7 +95,7 @@ ul{list-style:none}
 nav{
   position:sticky;top:0;z-index:200;
   display:flex;align-items:center;
-  padding:.3rem 1.6rem;
+  padding:.3rem 1.6rem .3rem 1.36rem;
   background:rgba(255,253,230,.92);
   backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   border-bottom:1px solid var(--line);
@@ -112,9 +112,9 @@ nav.nav-hidden{transform:translateY(-101%)}
     position:fixed;z-index:250;pointer-events:none;
   }
   .nav-logo-cap img{position:absolute;display:block;height:auto}
-  /* logo −20 % de plus dans la barre, et la barre garde sa hauteur d'origine */
-  nav .nav-logo img{width:calc(var(--logo-w) * .64)}
-  nav{min-height:81px}
+  /* logo : −20 %, −15 %, puis +10 % dans la barre (55.05px) ; la barre reste −15 % */
+  nav .nav-logo img{width:calc(var(--logo-w) * .5984)}
+  nav{min-height:calc(81px * .85)}
   .nav-logo-cap-circle{
     position:absolute;inset:0;border-radius:50%;
     border:1px solid rgba(58,25,0,.12);
@@ -131,8 +131,8 @@ nav.nav-hidden{transform:translateY(-101%)}
 /* pastille — colonne fixe à bords arrondis (façon Othisi2),
    suit le défilement : son "top" est piloté par le script de scroll */
 .nav-pill{
-  position:fixed;left:1.6rem;top:110px;z-index:150;
-  width:var(--logo-w);padding:1rem 0;border-radius:100px;
+  position:fixed;left:1.12rem;top:110px;z-index:150;
+  width:calc(var(--logo-w) * .7);padding:.7rem 0;border-radius:100px;
   border:1px solid rgba(58,25,0,.12);
   background:rgba(255,250,238,.55);
   backdrop-filter:blur(24px) saturate(1.15);
@@ -149,7 +149,7 @@ nav.nav-hidden{transform:translateY(-101%)}
 }
 .nav-links{
   display:flex;flex-direction:column;align-items:center;
-  gap:1.05rem;width:100%;
+  gap:calc(1.05rem * .7);width:100%;
 }
 .nav-links li{position:relative;width:max-content}
 .nav-icon{
@@ -161,7 +161,7 @@ nav.nav-hidden{transform:translateY(-101%)}
   text-decoration:none;cursor:pointer;position:relative;z-index:2;
   transition:color .3s,border-color .3s,background .3s,transform .3s cubic-bezier(.22,.9,.28,1),box-shadow .3s;
 }
-.nav-icon svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:transform .3s cubic-bezier(.22,.9,.28,1)}
+.nav-icon svg{width:calc(26px * .7);height:calc(26px * .7);stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:transform .3s cubic-bezier(.22,.9,.28,1)}
 
 /* ── icônes sociales — coin droit de la barre ──── */
 .nav-social{
@@ -190,12 +190,12 @@ nav.nav-hidden{transform:translateY(-101%)}
   position:absolute;top:50%;left:calc(100% + .7rem);
   transform:translateX(-14px) translateY(-50%);opacity:0;
   z-index:1;white-space:nowrap;pointer-events:none;
-  font-size:.7rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  font-size:calc(.7rem * .7);font-weight:600;letter-spacing:.14em;text-transform:uppercase;
   color:var(--brown);
   background:rgba(255,250,238,.72);
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
   border:1px solid rgba(58,25,0,.1);border-radius:100px;
-  padding:.42rem .85rem;
+  padding:calc(.42rem * .7) calc(.85rem * .7);
   box-shadow:0 6px 18px rgba(58,25,0,.1);
   transition:opacity .3s ease,transform .45s cubic-bezier(.22,.9,.28,1);
 }
@@ -380,7 +380,7 @@ nav.nav-hidden{transform:translateY(-101%)}
    CONTACT
 ════════════════════════════════════════════════════ */
 .contact-block{padding:4.6rem 0 6rem;text-align:center}
-.contact-visual{position:relative;width:374px;height:374px;margin:1.5rem auto 2.6rem}
+.contact-visual{position:relative;width:300px;height:300px;margin:1.5rem auto 2.6rem}
 .contact-arch-bg{
   position:absolute;inset:0;background:var(--cream);
   border-radius:50%;
@@ -507,6 +507,19 @@ footer{
   .liste li{text-align:left}
   footer{flex-direction:column;text-align:center;justify-content:center}
 }
+/* ═══ DESKTOP ≥861px — réductions de taille (mobile ≤860px intact) ═══ */
+@media(min-width:861px){
+  /* hero-title −10 % : clamp(2.6rem,5vw,4rem) × .9 */
+  .hero-title{font-size:clamp(2.34rem,4.5vw,3.6rem)}
+  /* soleil (cercle 374px + rayons) centré verticalement entre le bas du
+     .page-h-title et le haut du .contact-mail : marges haut/bas égalisées
+     à (113.6+41.6)/2 = 77.6px ; base = 1.5rem/2.6rem → −12px / 4.85rem */
+  .contact-visual{margin-top:-12px;margin-bottom:4.85rem}
+  /* rayons du soleil −20 % puis +15 % : scale(.92) autour du centre du soleil
+     (viewBox 0 20 220 220, centre (110,150) → 50 % / 59.09 % de la boîte) ;
+     origine inchangée → position du soleil fixe par rapport au disque */
+  .contact-rays{transform:scale(.92);transform-origin:50% 59.09%}
+}
 </style>
 </head>
 <body>
@@ -571,7 +584,7 @@ footer{
         Clémence Beaucousin, Psychologue du travail
       </span>
       <div class="hero-main">
-        <h1 class="hero-title">Un coup<br/>de <span class="accent">pouce</span><br/>pour avancer.</h1>
+        <h1 class="hero-title">Un coup<br/>de pouce<br/><span class="accent">pour avancer.</span></h1>
         <p class="hero-sub">Accompagnement des parcours scolaires et professionnels, en présentiel à Saint-Malo ou en visio dans toute la France.</p>
         <a href="#section-accompagnements" class="btn solid">
           Découvrir les accompagnements
@@ -996,21 +1009,20 @@ footer{
     /* réduction des animations : on laisse tout tranquille */
     if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
     const GRAY=.15;  // légère désaturation une fois fixé
-    const GAPL=12.8; // écart cercle→pastille = pas intérieur (1rem) réduit de 20 %
+    const GAPL=8.96; // écart cercle→pastille : 12.8 réduit de 30 %
     /* le "bas du soleil" (trait horizontal orange) est à 427/651 de la hauteur
        du PNG : on aligne ce trait au centre du cercle quand le logo y est posé */
     const LINE_F=427/651;
 
     const logo=document.querySelector('.nav-logo');
     const real=logo&&logo.querySelector('img');
-    const iconEl=document.querySelector('.nav-icon');
     const aboutEl=document.querySelector('#section-accueil .about');
-    if(!logo||!real||!aboutEl||!pill||!navEl||!iconEl)return;
+    if(!logo||!real||!aboutEl||!pill||!navEl)return;
     const aspect=(+real.getAttribute('height')||651)/(+real.getAttribute('width')||856);
-    /* cercle = même largeur que la pastille ; logo dedans = 30 % plus petit
-       que les icônes, positionné pour que le trait du soleil soit au centre */
+    /* cercle = même largeur que la pastille (CAPW=pill.offsetWidth, suit sa
+       réduction) ; logo dedans = taille fixe 39.87px */
     const CAPW=pill.offsetWidth;
-    const ARTW=iconEl.offsetWidth*.7;
+    const ARTW=39.87; /* logo fixé dans le cercle : 46.9 réduit de 15 % (le logo lui-même ne réduit pas) */
 
     let armed=false,cap,circle,clone,home,logoW,logoH,pxT,pxEnd;
     const mql=window.matchMedia('(min-width:861px)');
@@ -1121,6 +1133,10 @@ footer{
           align=0;o=1;f='none';
         }
       }
+      /* invariante (les deux sens) : le cercle ne s'approche jamais de la
+         pastille à moins de GAPL — ni pendant la descente ni au retour */
+      const maxCy=pill.getBoundingClientRect().top-GAPL-CAPW;
+      if(cy>maxCy)cy=maxCy;
       placeCap(cx,cy,imgW,align,o,f);
       const imgTop=cy+imgOffsetY(imgW,align);
       /* le cercle apparaît dès que le logo sort de la barre, disparaît au retour */
